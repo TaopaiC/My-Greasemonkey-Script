@@ -3,26 +3,33 @@
 // @namespace      http://pctao.org/
 // @description    將路線及公車站的連結從 javascript: 改成直接連結.<br/>  Convert Line and BusStop links from javascript: to direct links.
 // @author         TaopaiC
-// @version        Version 0.2: 6/28/2008
+// @version        $Id$
 // @include        http://www.taipeibus.taipei.gov.tw/emap/program/html/bus_stationcnt.asp*
 // @include        http://www.taipeibus.taipei.gov.tw/emap/program/html/bus_cnt.asp*
 // ==/UserScript==
 
 (function(){
-    function myjob()
-    {
-        a=jQuery("td.mtext1:contains('路線資訊')").parent().next();
-        jQuery("a", a).each( function(i, val) {
+    function process_busline(table) {
+        jQuery("a", table).each( function(i, val) {
           href = jQuery(this).attr("href").replace( /.*showSS\(\'(.*)\'\).*/g, "http://www.taipeibus.taipei.gov.tw/emap/program/html/bus_stationcnt.asp?s=$1" );
           jQuery(this).attr("href", href);
         });
-
-        a=jQuery("td.mtext1:contains('停靠路線')").next();;
-        jQuery("a", a).each( function(i, val) {
+    }
+    function process_busstop(table) {
+        jQuery("a", table).each( function(i, val) {
           href = jQuery(this).attr("href").replace( /.*showBus\(\'(.*)\'\).*/g, "http://www.taipeibus.taipei.gov.tw/emap/program/html/bus_cnt.asp?s=$1" );
           jQuery(this).attr("href", href);
         });
+    }
+    function myjob()
+    {
+        table = jQuery("td.mtext1:contains('路線資訊')").parent().next();
+        if (table.length > 0)
+            process_busline();
 
+        table = jQuery("td.mtext1:contains('停靠路線')").next();;
+        if (table.length > 0)
+            process_busstop();
     }
     function loadSnap() {
         var script= document.createElement('script');
@@ -37,3 +44,4 @@
         onload: function(r){ eval(r.responseText); myjob(); loadSnap();}
         });
 })();
+// vim6:set et ts=4 sw=4:
