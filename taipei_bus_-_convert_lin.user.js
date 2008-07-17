@@ -37,13 +37,15 @@ var regex = {
 var url = {
     "busstop": "http://www.taipeibus.taipei.gov.tw/emap/program/html/bus_stationcnt.asp?s=",
     "busline": "http://www.taipeibus.taipei.gov.tw/emap/program/html/bus_cnt.asp?s=",
-    "mrt": "http://www.taipeibus.taipei.gov.tw/transit/mstationcnt.asp?s="
+    "mrt": "http://www.taipeibus.taipei.gov.tw/transit/mstationcnt.asp?s=",
+    "busstopmap": "http://www.taipeibus.taipei.gov.tw/emap/program/html/..%5C..%5C..%5Ctransit%5Cssimage%5C"
 }
 
 var regexurl = {
-    "busstop": url.busstop + "$1",
-    "busline": url.busline + "$1",
-    "mrt":     url.mrt + "$1"
+    "busstop":    url.busstop + "$1",
+    "busline":    url.busline + "$1",
+    "mrt":        url.mrt + "$1",
+    "busstopmap": url.busstopmap + "$1.gif"
 }
 
     function process_busstop_header() {
@@ -82,6 +84,19 @@ var regexurl = {
                     [lname, lStartStop, lEndStop, lid]);
     }
 
+    function hide_busstop_map(a) {
+        var mapcell = jQuery(a).parent().parent().next();
+        if (mapcell.hasClass('map'))
+            mapcell.remove();
+    }
+
+    function show_busstop_map(a) {
+        var map = jQuery(a).attr("href").replace( regex.href_sid , regexurl.busstopmap );
+        console.debug(map);
+        jQuery("<img/>").attr("src", map).insertAfter(jQuery(a).parent().parent()).wrap("<tr class='map'><td colspan='3' class='map'></td></tr>");
+        return false;
+    }
+
     function process_busline(table) {
         var lname = jQuery("td.mtext1:contains('路線編號')").next().text();
         var lid = query_lid(lname, 0);
@@ -101,6 +116,7 @@ var regexurl = {
         var org_tdarea   = jQuery("<td class='area'/>");
         var org_otherbus = jQuery("<td class='otherbus'/>");
         var org_a        = jQuery("<a/>");
+        var org_amap     = jQuery("<a/>").text("(地圖)").addClass("map").addClass('snap_noshots');
 
         //db.execute( 'CREATE TEMP VIEW STOPLINE AS SELECT BusLine.Name BusStopLine.SId FROM BusLine left join BusStopLine on BusLine.lid=BusStopLine.lid WHERE BusStopLine.lid=? ORDER BY BusLine.Name', [ lid ] );
 
@@ -114,7 +130,13 @@ var regexurl = {
                 var tr = org_tr.clone();
                 if ( sname.match(regex.stop_mrt) )
                     tr.addClass('mrt');
-                tthis.clone().appendTo(tr).wrap(org_tdname.clone());
+                tthis.clone().appendTo(tr).wrap(org_tdname.clone())
+                    .after( org_amap.clone().attr("href",href)
+                    .toggle(
+                        function() {return show_busstop_map(this)},
+                        function() {return hide_busstop_map(this)} )  );
+
+                tthis.addClass('snap_noshots');
 
             try {
                 if (hasGears) {
@@ -303,6 +325,7 @@ var regexurl = {
             var lid;
             var rs = db.execute( 'select LId,isLoaded from BusLine where Name = ?', [ lname ] );
             if (rs.isValidRow()) {
+                console.debug("query_lid-:11");
                 lid = rs.field(0);
                 rs.close();
                 if ( (isLoaded == 1) && (rs.field(1) == 0) ) {
@@ -312,12 +335,18 @@ var regexurl = {
             } else {
                 // no this busline, add one
                 rs.close();
+                console.debug("query_lid-:1");
                 db.execute('REPLACE into BusLine values (NULL, ?, ?, NULL, NULL)', 
                         [ lname, isLoaded ] );
+                console.debug("query_lid-:2");
                 rs = db.execute( 'select LId from BusLine where Name = ?', [ lname ] );
+                console.debug("query_lid-:3");
                 if (rs.isValidRow()) {
+                console.debug("query_lid-:4");
                     lid = rs.field(0);
+                console.debug("query_lid-:5");
                     rs.close();
+                console.debug("query_lid-:6");
                     return lid;
                 }
             }
@@ -393,6 +422,7 @@ var regexurl = {
             "table.newTable tr.mrt {background:#AA0}" + 
             "table.newTable tr {border: 1px solid #333}" +
 //            "table.newTable td {border: 1px solid #000000}" +
+            "table.newTable td.map  {text-align:center}" +
             "table.newTable td.name {width: 220px}" +
             "table.newTable td.area {width: 100px}" +
             "table.newTable td.otherbus {width: 400px}" +
