@@ -84,10 +84,60 @@ var regexurl = {
                     [lname, lStartStop, lEndStop, lid]);
     }
 
+    function ajax_get(url, cb) {
+        GM_xmlhttpRequest( {
+            method: "GET",
+            url: url,
+            onload: function(xhr) { cb(xhr.responseText, xhr.statusText); }
+        } );
+    }
+
+    function ajax_get_json(url, cb) {
+        GM_xmlhttpRequest( {
+            method: "GET",
+            url: url,
+            onload: function(xhr) { 
+                    var json = eval( "(" + xhr.responseText + ")" );
+                    cb(json, xhr.statusText); 
+                }
+        } );
+    }
+
+    function load_busstop_line(a) {
+        var busstop_line_pipe = "http://pipes.yahoo.com/pipes/pipe.run?_id=ee68f6d42495014584ce839f2666ddd1&_render=json&stopnumber=";
+        var url_postfix = "&_callback=?";
+        var sid = jQuery(a).parent().parent().attr("id").replace(/busstop-/, "");
+        console.debug(sid);
+        if (sid != null && sid != "") {
+            ajax_get_json(
+                busstop_line_pipe + sid,
+                function (data, statusText) {
+                    if (statusText != "OK")
+                        return;
+                    console.debug(statusText);
+                    console.debug(data);
+                    if (data.count > 0) {
+                        var datacell = jQuery("table#newTable tr#busstop-"+sid+" td.otherbus");
+                        var org_a = jQuery("<a/>");
+                        datacell.empty();
+
+                        for (var i = 0; i < data.count; i++) {
+                            var lid = data.value.items[i].id;
+                            datacell.append( org_a.clone().text(lid).attr("href", url.busline + lid) );
+                        }
+                        datacell.parent().removeClass("needUpdate");
+                    }
+                }
+            );
+        }
+        return false;
+    }
+
     function hide_busstop_map(a) {
         var mapcell = jQuery(a).parent().parent().next();
         if (mapcell.hasClass('map'))
             mapcell.remove();
+        return false;
     }
 
     function show_busstop_map(a) {
@@ -111,12 +161,14 @@ var regexurl = {
             jQuery("<td class='otherbus'>路線</td>"  ).appendTo( jQuery("thead>tr", newTable));
         }
 
+        /* 預先準備複製用的元素 */
         var org_tr       = jQuery("<tr></tr>");
         var org_tdname   = jQuery("<td class='name'/>");
         var org_tdarea   = jQuery("<td class='area'/>");
         var org_otherbus = jQuery("<td class='otherbus'/>");
         var org_a        = jQuery("<a/>");
         var org_amap     = jQuery("<a/>").text("(地圖)").addClass("map").addClass('snap_noshots');
+        var org_load     = jQuery("<a/>").text("(載入路線)").addClass("loadbusline").addClass('snap_noshots');
 
         //db.execute( 'CREATE TEMP VIEW STOPLINE AS SELECT BusLine.Name BusStopLine.SId FROM BusLine left join BusStopLine on BusLine.lid=BusStopLine.lid WHERE BusStopLine.lid=? ORDER BY BusLine.Name', [ lid ] );
 
@@ -127,22 +179,31 @@ var regexurl = {
                 var href = url.busstop + sid;
                 tthis.attr("href", href);
 
+                /* prepare tr */
                 var tr = org_tr.clone();
+                tr.attr("id", "busstop-" + sid);
                 if ( sname.match(regex.stop_mrt) )
                     tr.addClass('mrt');
+
+                /* add (copy of this) to tr */
                 tthis.clone().appendTo(tr).wrap(org_tdname.clone())
+                    .after( org_load.clone().attr("href",href)
+                        .click(
+                            function() {return load_busstop_line(this)} )  )
                     .after( org_amap.clone().attr("href",href)
-                    .toggle(
-                        function() {return show_busstop_map(this)},
-                        function() {return hide_busstop_map(this)} )  );
+                        .toggle(
+                            function() {return show_busstop_map(this)},
+                            function() {return hide_busstop_map(this)} )  );
 
                 tthis.addClass('snap_noshots');
 
             try {
                 if (hasGears) {
                     var needupdate = insert_sid(sid, sname);
-                    if (needupdate == true)
+                    if (needupdate == true) {
                         insert_sidlid(sid,lid,i+1);
+                        tr.addClass("needUpdate");
+                    }
 
                     var rs = db.execute( 'select Area,Road from BusStop where SId = ?', [ sid ] );
                     if (rs.isValidRow()) {
@@ -428,7 +489,13 @@ var regexurl = {
             "table.newTable td.otherbus {width: 400px}" +
             "table.newTable td.start {width: 190px; text-align:right}" +
             "table.newTable td.line  {width: 200px; text-align:center}" +
-            "table.newTable td.end   {width: 200px}"
+            "table.newTable td.end   {width: 200px}" +
+
+            "table.newTable a.loadbusline  {font-size: 10px}" +
+            "table.newTable a.map          {font-size: 10px}" +
+
+            "table.newTable a.loadbusline  {display:none}" +
+            "table.newTable tr.needUpdate a.loadbusline  {display:inline}"
         );
         var starttime = new Date();
         myjob();
