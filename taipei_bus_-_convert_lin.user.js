@@ -3,13 +3,14 @@
 // @namespace      http://pctao.org/
 // @description    將路線及公車站的連結從 javascript: 改成直接連結.<br/>  Convert Line and BusStop links from javascript: to direct links.
 // @author         TaopaiC
-// @version        $Id$
+// @version        $Rev$
 // @include        http://www.taipeibus.taipei.gov.tw/emap/program/html/bus_stationcnt.asp*
 // @include        http://www.taipeibus.taipei.gov.tw/emap/program/html/bus_cnt.asp*
 // @include        http://www.taipeibus.taipei.gov.tw/transit/result1.asp
 // @require        http://ajax.googleapis.com/ajax/libs/jquery/1.2.6/jquery.min.js
 // @require        http://code.google.com/apis/gears/gears_init.js
 // ==/UserScript==
+// version        $Id: taipei_bus_-_convert_lin.user.js 5 2008-07-18 21:03:29Z pctao $
 
 (function(){
 
