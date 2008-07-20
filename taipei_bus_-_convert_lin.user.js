@@ -33,6 +33,12 @@ var server = null;
 var store = null;
 var db = null;
 
+var pref = {
+    "useGears":   true,
+    "autoTable":  false,
+    "snapShot":   true
+}
+
 var regex = { 
     "busstop":   /.*bus_stationcnt.asp\?s=(\d*).*/,
     "showSS":    /.*showSS\(\'(.*)\'\).*/g,
@@ -42,7 +48,7 @@ var regex = {
     "href_stop": /.*bus_stationcnt.asp\?s=.*/,
     "href_line": /.*bus_cnt.asp\?s=.*/,
     "href_mrt":  /.*\/result1\.asp$/,
-    "stop_mrt":  /捷運|台北車站/
+    "stop_mrt":  /捷運|車站/
 };
 
 var url = {
@@ -130,7 +136,7 @@ var regexurl = {
                     if (data.count > 0) {
                         var datacell  = jQuery("table#newTable tr#busstop-"+sid+" td.otherbus");
                         var org_a     = jQuery("<a/>");
-                        var org_delma = jQuery("<span>、</span>");
+                        var org_delma = jQuery("<span>、</span>").addClass('separator');
                         datacell.empty();
 
 
@@ -150,8 +156,10 @@ var regexurl = {
 
     function hide_busstop_map(a) {
         var mapcell = jQuery(a).parent().parent().next();
-        if (mapcell.hasClass('map'))
+        if (mapcell.hasClass('map')) {
             mapcell.remove();
+            jQuery(this).removeClass('expended');
+        }
         return false;
     }
 
@@ -159,6 +167,7 @@ var regexurl = {
         var map = jQuery(a).attr("href").replace( regex.href_sid , regexurl.busstopmap );
         console.debug(map);
         jQuery("<img/>").attr("src", map).insertAfter(jQuery(a).parent().parent()).wrap("<tr class='map'><td colspan='3' class='map'></td></tr>");
+        jQuery(this).addClass('expended');
         return false;
     }
 
@@ -167,13 +176,20 @@ var regexurl = {
         var lid = query_lid(lname, 0);
         console.debug("lname:" + lname + "  lid:" + lid);
 
-        // new table
-        var newTable = jQuery("<table id ='newTable' class='newTable'><thead><tr><td class='name'>站名</td></tr></thead><tbody></tbody></table>");
-        var newTableBody = jQuery("tbody", newTable);
+        if (pref.autoTable) {
+            // new table
+            var newTable = jQuery("<table id ='newTable' class='newTable'><thead><tr><td class='name'>站名</td></tr></thead><tbody></tbody></table>");
+            var newTableBody = jQuery("tbody", newTable);
+//            jQuery("thead td.name", newTable).append(
+//                jQuery("<a/>").text("展開所有地圖").click(function() {
+//                    jQuery("a.map:not(.expended)").click();
+//                } )
+//            );
 
-        if (hasGears) {
-            jQuery("<td class='area'>地點</td>").prependTo(jQuery("thead>tr", newTable));
-            jQuery("<td class='otherbus'>路線</td>"  ).appendTo( jQuery("thead>tr", newTable));
+            if (hasGears) {
+                jQuery("<td class='area'>地點</td>").prependTo(jQuery("thead>tr", newTable));
+                jQuery("<td class='otherbus'>路線</td>"  ).appendTo( jQuery("thead>tr", newTable));
+            }
         }
 
         /* 預先準備複製用的元素 */
@@ -184,7 +200,7 @@ var regexurl = {
         var org_a        = jQuery("<a/>");
         var org_br       = jQuery("<br/>");
         var org_space    = jQuery("<span>&nbsp;&nbsp;&nbsp;</span>");
-        var org_delma    = jQuery("<span>、</span>");
+        var org_delma    = jQuery("<span>、</span>").addClass('separator');
         var org_amap     = jQuery("<a/>").text("(地圖)").addClass("map").addClass('snap_noshots');
         var org_load     = jQuery("<a/>").text("(載入路線)").addClass("loadbusline").addClass('snap_noshots');
 
@@ -196,7 +212,16 @@ var regexurl = {
                 var sname = tthis.text();
                 var href = url.busstop + sid;
                 tthis.attr("href", href);
+                tthis.hover( function() {
+                        jQuery("a:contains(" + jQuery(this).text() + ")", jQuery(this).parent())
+                            .addClass("selectedHover");
+                    }, function() {
+                        jQuery("a.selectedHover").removeClass('selectedHover');
+                    } );
+                if ( sname.match(regex.stop_mrt) )
+                    tthis.addClass('mrt');
 
+            if (pref.autoTable) {
                 /* prepare tr */
                 var tr = org_tr.clone();
                 tr.attr("id", "busstop-" + sid);
@@ -248,7 +273,14 @@ var regexurl = {
                         else
                             org_delma.clone().appendTo(otherbus);
                         var lname = rs.field(0);
-                        var a = org_a.clone().text(lname).attr("href", url.busline + lname);
+                        var a = org_a.clone().text(lname).attr("href", url.busline + lname)
+                                .hover( function() {
+                                    jQuery("a:contains(" + jQuery(this).text() + ")", 
+                                            jQuery(this).parent().parent().parent())
+                                        .addClass("selectedHover");
+                                }, function() {
+                                    jQuery("a.selectedHover").removeClass('selectedHover');
+                                } );
                         a.appendTo(otherbus);
                         rs.next();
                     }
@@ -259,8 +291,10 @@ var regexurl = {
             }
 
             tr.appendTo(newTableBody);
+            }
         });
-        newTable.insertAfter(table).wrap("<tr><td colspan='4'/></tr>");
+        if (pref.autoTable)
+            newTable.insertAfter(table).wrap("<tr><td colspan='4'/></tr>");
     }
 
     function process_busstop(table) {
@@ -326,6 +360,7 @@ var regexurl = {
         try {
 
             jQuery("body>table").attr("width", 600);
+            jQuery("font[color=red]").addClass("separator").removeAttr("color");
 
             if (location.href.match( regex.href_mrt )) {
                 process_searchresult();
@@ -349,6 +384,8 @@ var regexurl = {
     }
 
     function loadSnap() {
+        if (!GM_getValue("optSnapShot"))
+            return;
         var script= document.createElement('script');
         script.type= 'text/javascript';
         script.src= 'http://shots.snap.com/ss/053d995628053581b456595b40596e61/snap_shots.js';
@@ -445,6 +482,8 @@ var regexurl = {
     }
 
     function initGears() {
+        if (!pref.useGears)
+            return;
         if (!unsafeWindow.google) unsafeWindow.google = {};
         if (!unsafeWindow.google.gears){
             unsafeWindow.google.gears= {factory: new GearsFactory()};
@@ -480,6 +519,9 @@ var regexurl = {
         } catch(e) {
             console.debug("error:" + e);
         }
+        if (!server) {
+            triggerAllowGearsDialog();
+        }
     }
 
     function triggerAllowGearsDialog() {
@@ -492,6 +534,120 @@ var regexurl = {
             },
         true);
     }
+
+    function closePrefPanel() {
+        jQuery("#taipeibusplus_prefs_panel").remove();
+    }
+
+    function savePrefPanel() {
+        var optPanel = jQuery("#taipeibusplus_prefs_panel");
+        if (optPanel.size() == 0)
+            return;
+
+        GM_setValue("optUseGears",  jQuery("#cboptUseGears", optPanel).attr("checked"));
+        GM_setValue("optSnapShot",  jQuery("#cboptSnapShot", optPanel).attr("checked"));
+        GM_setValue("optAutoTable", jQuery("#cboptAutoTable", optPanel).attr("checked"));
+
+        closePrefPanel();
+    }
+
+    function createPrefPanel() {
+        if (jQuery("#taipeibusplus_prefs_panel").size() != 0)
+            return;
+
+        var org_br = jQuery("<br/>");
+
+        var divoptions = jQuery("<div/>")
+                .attr("id", "taipeibusplus_prefs_panel")
+                .css( {
+                    textAlign: "left",
+                    backgroundColor: "#FFFF77",
+                    position: "fixed",
+                    zIndex:   "1001",
+                    fontSize: "xx-small",
+                    bottom:   "0pt",
+                    right:    "0pt",
+                    padding:  "5px",
+                    minWidth: "250px",
+                    minHeight: "50px"
+                } );
+        var spanUseGears = jQuery("<span/>")
+                .attr("id", "taipeibusplus_prefs_useGears")
+                .appendTo(divoptions);
+        var spanSnapShot = jQuery("<span/>")
+                .attr("id", "taipeibusplus_prefs_snapShot")
+                .appendTo(divoptions);
+        var spanAutoTable = jQuery("<span/>")
+                .attr("id", "taipeibusplus_prefs_autoTable")
+                .appendTo(divoptions);
+        var spanControl = jQuery("<span/>")
+                .attr("id", "taipeibusplus_prefs_control")
+                .appendTo(divoptions);
+
+        jQuery("<input type='checkbox'/>")
+                .attr("id", "cboptUseGears")
+                .click(function() {console.debug("aa")}).appendTo(spanUseGears);
+        jQuery("<span/>")
+                .text("使用 google gears 功能")
+                .appendTo(spanUseGears);
+        org_br.clone().appendTo(spanUseGears);
+
+        jQuery("<input type='checkbox'/>")
+                .attr("id", "cboptSnapShot")
+                .click(function() {console.debug("aa")}).appendTo(spanSnapShot);
+        jQuery("<span/>")
+                .text("使用SnapShot預覽")
+                .appendTo(spanSnapShot);
+        org_br.clone().appendTo(spanSnapShot);
+
+        jQuery("<input type='checkbox'/>")
+                .attr("id", "cboptAutoTable")
+                .click(function() {console.debug("aa")}).appendTo(spanAutoTable);
+        jQuery("<span/>")
+                .text("使用額外列表")
+                .appendTo(spanAutoTable);
+        org_br.clone().appendTo(spanAutoTable);
+
+        jQuery("<a/>")
+                .text("確定")
+                .click( savePrefPanel )
+                .appendTo(spanControl);
+        jQuery("<span>&nbsp;</span>")
+                .appendTo(spanControl);
+        jQuery("<a/>")
+                .text("取消")
+                .click( closePrefPanel )
+                .appendTo(spanControl);
+
+        if (GM_getValue("optUseGears")) {
+            jQuery("#cboptUseGears", divoptions).attr("checked", true);
+        }
+        if (GM_getValue("optSnapShot")) {
+            jQuery("#cboptSnapShot", divoptions).attr("checked", true);
+        }
+        if (GM_getValue("optAutoTable")) {
+            jQuery("#cboptAutoTable", divoptions).attr("checked", true);
+        }
+
+        divoptions.appendTo(document.body);
+    }
+
+    function createPrefButton() {
+        jQuery("<button/>")
+            .attr("id", "taipeibusplus_prefs_menu_button")
+            .attr("title", "設定TaipeiBus+")
+            .text("設定")
+            .css( {
+                position: "fixed",
+                zIndex:   "999",
+                fontSize: "xx-small",
+                bottom:   "0pt",
+                right:    "0pt"
+            } )
+            .click(createPrefPanel)
+            .appendTo(document.body);
+    }
+
     function caltime(starttime, endtime) {
         var sec = endtime.getSeconds() - starttime.getSeconds();
         var msec = endtime.getMilliseconds() - starttime.getMilliseconds();
@@ -500,8 +656,12 @@ var regexurl = {
     }
     function init_Style() {
         GM_addStyle(
+            "a.mrt {background:#DDD}" + 
+            "td font.separator, td span.separator {color:#AAA}" + 
+            "a.selectedHover {background:#A00;color:#FFF}" + 
+
             "table.newTable {font-size: 14px}" +
-            "table.newTable tr.mrt {background:#AA0}" + 
+            "table.newTable tr.mrt {background:#DDD}" + 
             "table.newTable tr {border: 1px solid #333}" +
 //            "table.newTable td {border: 1px solid #000000}" +
             "table.newTable td.map  {text-align:center}" +
@@ -520,16 +680,21 @@ var regexurl = {
         );
     }
 
+    function loadPrefs() {
+        pref.useGears  = GM_getValue("optUseGears",  pref.useGears);
+        pref.snapShot  = GM_getValue("optSnapShot",  pref.snapShot);
+        pref.autoTable = GM_getValue("optAutoTable", pref.autoTable);
+    }
+
     function init() {
+        loadPrefs();
         autoUpdateFromUserscriptsDotOrg( {
             name: TaipeiBusPlus.name,
             url: 'http://userscripts.org/scripts/source/' + TaipeiBusPlus.usId + '.user.js',
             version: TaipeiBusPlus.version
         } );
+        createPrefButton();
         initGears();
-        if (!server) {
-            triggerAllowGearsDialog();
-        }
         init_Style();
         var starttime = new Date();
         myjob();
