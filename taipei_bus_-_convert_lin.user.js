@@ -3,7 +3,7 @@
 // @namespace      http://pctao.org/
 // @description    將路線及公車站的連結從 javascript: 改成直接連結.<br/>  Convert Line and BusStop links from javascript: to direct links.
 // @author         TaopaiC
-// @version        $Rev$
+// @version        0.3
 // @include        http://www.taipeibus.taipei.gov.tw/emap/program/html/bus_stationcnt.asp*
 // @include        http://www.taipeibus.taipei.gov.tw/emap/program/html/bus_cnt.asp*
 // @include        http://www.taipeibus.taipei.gov.tw/transit/result1.asp
@@ -13,6 +13,16 @@
 // version        $Id: taipei_bus_-_convert_lin.user.js 5 2008-07-18 21:03:29Z pctao $
 
 (function(){
+
+// -------------------------------------------------------
+// SCRIPT info
+// -------------------------------------------------------
+var TaipeiBusPlus = {
+    'version':  '0.1',
+    'name':     'Taipei Bus+',
+    'author':   'TaopaiC <pctao.public@pctao.org>',
+    'usId':     '29274'
+};
 
 // -------------------------------------------------------
 // Global variables
@@ -118,12 +128,16 @@ var regexurl = {
                     console.debug(statusText);
                     console.debug(data);
                     if (data.count > 0) {
-                        var datacell = jQuery("table#newTable tr#busstop-"+sid+" td.otherbus");
-                        var org_a = jQuery("<a/>");
+                        var datacell  = jQuery("table#newTable tr#busstop-"+sid+" td.otherbus");
+                        var org_a     = jQuery("<a/>");
+                        var org_delma = jQuery("<span>、</span>");
                         datacell.empty();
+
 
                         for (var i = 0; i < data.count; i++) {
                             var lid = data.value.items[i].id;
+                            if (i != 0)
+                                org_delma.clone().appendTo(datacell);
                             datacell.append( org_a.clone().text(lid).attr("href", url.busline + lid) );
                         }
                         datacell.parent().removeClass("needUpdate");
@@ -168,6 +182,9 @@ var regexurl = {
         var org_tdarea   = jQuery("<td class='area'/>");
         var org_otherbus = jQuery("<td class='otherbus'/>");
         var org_a        = jQuery("<a/>");
+        var org_br       = jQuery("<br/>");
+        var org_space    = jQuery("<span>&nbsp;&nbsp;&nbsp;</span>");
+        var org_delma    = jQuery("<span>、</span>");
         var org_amap     = jQuery("<a/>").text("(地圖)").addClass("map").addClass('snap_noshots');
         var org_load     = jQuery("<a/>").text("(載入路線)").addClass("loadbusline").addClass('snap_noshots');
 
@@ -194,7 +211,9 @@ var regexurl = {
                     .after( org_amap.clone().attr("href",href)
                         .toggle(
                             function() {return show_busstop_map(this)},
-                            function() {return hide_busstop_map(this)} )  );
+                            function() {return hide_busstop_map(this)} )  )
+                    .after( org_space.clone() )
+                    .after( org_br.clone() );
 
                 tthis.addClass('snap_noshots');
 
@@ -222,7 +241,12 @@ var regexurl = {
 
                     // TODO: need rewrite
                     rs = db.execute( 'SELECT BusLine.Name FROM BusLine left join BusStopLine on BusLine.lid=BusStopLine.lid WHERE BusStopLine.sid=? ORDER BY BusLine.Name', [ sid ] );
+                    var first = true;
                     while (rs.isValidRow()) {
+                        if (first)
+                            first = false;
+                        else
+                            org_delma.clone().appendTo(otherbus);
                         var lname = rs.field(0);
                         var a = org_a.clone().text(lname).attr("href", url.busline + lname);
                         a.appendTo(otherbus);
@@ -431,19 +455,19 @@ var regexurl = {
             db = unsafeWindow.google.gears.factory.create('beta.database', '1.0');
             if (db) {
                 db.open('taipeibus');
-                // BusStop
+            // BusStop
                 db.execute('create table if not exists BusStop' +
                     ' (SId INTEGER, Name varchar(128), Area varchar(128), Road varchar(128), isLoaded INTEGER)');
                 db.execute('CREATE INDEX if not exists BS_SID' + 
                     ' ON BusStop (SId ASC)');
-                // BusLine
+            // BusLine
                 db.execute('create table if not exists BusLine' +
                     ' (LId INTEGER NOT NULL PRIMARY KEY, Name varchar(128), isLoaded INTEGER, StartStop varchar(64), EndStop varchar(64))');
                 db.execute('CREATE INDEX if not exists BL_LID' + 
                     ' ON BusLine (LId ASC)');
                 db.execute('CREATE INDEX if not exists BL_LIDNAME' + 
                     ' ON BusLine (LId ASC, Name ASC)');
-                // BusStop -> lines
+            // BusStop -> lines
                 db.execute('create table if not exists BusStopLine' +
                     ' (SId INTEGER, LId INTEGER, No INTEGER)');
                 db.execute('CREATE INDEX if not exists BSL_LID' + 
@@ -474,11 +498,7 @@ var regexurl = {
         var allmsec = sec * 1000 + msec;
         return allmsec;
     }
-    function init() {
-        initGears();
-        if (!server) {
-            triggerAllowGearsDialog();
-        }
+    function init_Style() {
         GM_addStyle(
             "table.newTable {font-size: 14px}" +
             "table.newTable tr.mrt {background:#AA0}" + 
@@ -498,11 +518,74 @@ var regexurl = {
             "table.newTable a.loadbusline  {display:none}" +
             "table.newTable tr.needUpdate a.loadbusline  {display:inline}"
         );
+    }
+
+    function init() {
+        autoUpdateFromUserscriptsDotOrg( {
+            name: TaipeiBusPlus.name,
+            url: 'http://userscripts.org/scripts/source/' + TaipeiBusPlus.usId + '.user.js',
+            version: TaipeiBusPlus.version
+        } );
+        initGears();
+        if (!server) {
+            triggerAllowGearsDialog();
+        }
+        init_Style();
         var starttime = new Date();
         myjob();
         var endtime = new Date();
         console.debug("exec " + caltime(starttime, endtime) + " msec");
         loadSnap();
+    }
+
+    function autoUpdateFromUserscriptsDotOrg(SCRIPT) {
+    // Update code from Junk Blocker: http://loonyone.livejournal.com/
+    // usage example
+    // autoUpdateFromUserscriptsDotOrg({
+    //   name: 'RSS+Atom Feed Subscribe Button Generator',
+    //   url: 'http://userscripts.org/scripts/source/688.user.js',
+    //   version: "1.2",
+    // });
+        try {
+            if (!GM_getValue) return; // Older version of Greasemonkey. Can't run.
+
+            // avoid a flood of dialogs e.g. when opening a browser with multiple 
+            // tabs set to homepage and a script with * includes or opening a tabgrop
+            var DoS_PREVENTION_TIME = 2 * 60 * 1000;
+            var isSomeoneChecking = GM_getValue('CHECKING', null);
+            var _now = new Date().getTime();
+            GM_setValue('CHECKING', _now.toString());
+
+            if (isSomeoneChecking && (_now - isSomeoneChecking) < DoS_PREVENTION_TIME) return;
+
+            var ONE_DAY = 24 * 60 * 60 * 1000;
+            var ONE_WEEK = 7 * ONE_DAY;
+            var TWO_WEEKS = 2 * ONE_WEEK;
+            var lastChecked = GM_getValue('LAST_CHECKED', null);
+            if (lastChecked && (now - lastChecked) < ONE_DAY) return;
+
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: SCRIPT.url + '?source', // don't increase the 'installed' 
+                                             //   count just for update checks
+                onload: function(result) {
+                    // did not find a suitable version header
+                    if (!result.responseText.match(/@version\s+([\d.]+)/)) return;
+
+                    var theOtherVersion = parseFloat(RegExp.$1);
+                    // no updates or older version on userscripts.orge site
+                    if (theOtherVersion <= parseFloat(SCRIPT.version)) return;
+
+                    var confirm_msg = 'A new version ' + theOtherVersion + ' of greasemonkey script "' + SCRIPT.name + '" is available.\nYour installed version is ' + SCRIPT.version + ' .\n\nUpdate now?\n';
+                    if ( window.confirm(confirm_msg) ) {
+                        // better than location.replace as doing so might lose unsaved data
+                        GM_openInTab(SCRIPT.url);   
+                    }
+                }
+            } );
+            GM_setValue('LAST_CHECKED', now.toString());
+        } catch (ex) {
+        }
     }
 
     init();
