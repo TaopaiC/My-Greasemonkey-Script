@@ -963,6 +963,7 @@ var regexurl = {
         autoUpdateFromUserscriptsDotOrg( {
             name: TaipeiBusPlus.name,
             url: 'http://userscripts.org/scripts/source/' + TaipeiBusPlus.usId + '.user.js',
+            showurl: 'http://userscripts.org/scripts/show/' + TaipeiBusPlus.usId,
             version: TaipeiBusPlus.version
         } );
     }
@@ -1008,7 +1009,7 @@ var regexurl = {
                     var confirm_msg = 'A new version ' + theOtherVersion + ' of greasemonkey script "' + SCRIPT.name + '" is available.\nYour installed version is ' + SCRIPT.version + ' .\n\nUpdate now?\n';
                     if ( window.confirm(confirm_msg) ) {
                         // better than location.replace as doing so might lose unsaved data
-                        GM_openInTab(SCRIPT.url);   
+                        GM_openInTab(SCRIPT.showurl);   
                     }
                 }
             } );
