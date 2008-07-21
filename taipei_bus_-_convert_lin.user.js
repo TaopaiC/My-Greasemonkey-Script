@@ -3,7 +3,7 @@
 // @namespace      http://pctao.org/
 // @description    將 http://www.taipeibus.taipei.gov.tw/ 的路線及公車站的連結從 javascript: 改成直接連結, 以及其他增強功能.<br/>  Convert Line and BusStop links from javascript: to direct links, and other enchanced functions.
 // @author         TaopaiC
-// @version        0.3
+// @version        0.4
 // @include        http://www.taipeibus.taipei.gov.tw/*
 // @include        http://www.taipeibus.taipei.gov.tw.nyud.net/*
 // @require        http://ajax.googleapis.com/ajax/libs/jquery/1.2.6/jquery.min.js
@@ -17,7 +17,7 @@
 // SCRIPT info
 // -------------------------------------------------------
 var TaipeiBusPlus = {
-    'version':  '0.3',
+    'version':  '0.4',
     'name':     'Taipei Bus PLUS',
     'author':   'TaopaiC <pctao.public@pctao.org>',
     'usId':     '29274'
@@ -76,22 +76,21 @@ var regexurl = {
             return;
 
         var sid = location.href.replace( regex.href_sid, "$1" );
+
+        var rs = db.execute( 'SELECT isLoaded from BusStop where SId = ?', [ sid ] );
+        if (rs.isValidRow() && rs.field(0) == 1) {
+            rs.close();
+            return;
+        }
+        rs.close();
+
         var sname = jQuery("td.mtext1:contains('站位名稱')").next().text();
         var sarea = jQuery("td.mtext1:contains('所在行政區')").next().text();
         var sroad = jQuery("td.mtext1:contains('所在道路')").next().text();
-
-        var rs = db.execute( 'SELECT SId,isLoaded from BusStop where SId = ?', [ sid ] );
-        if (rs.isValidRow()) {
-            if (rs.field(1) == 1)
-                // dont need update
-                return;
-
-            db.execute('UPDATE BusStop SET Name=?,Area=?,Road=?,isLoaded=1 WHERE SId = ?', 
-                    [sname, sarea, sroad, sid]);
-        } else {
-            db.execute('INSERT into BusStop values (?, ?, ?, ?, NULL, 1)', 
-                    [sid, sname, sarea, sroad]);
-        }
+        try{
+        db.execute('INSERT OR REPLACE into BusStop values(?,?,?,?,NULL,?)', 
+                [sid, sname, sarea, sroad, 1]);
+        } catch(e) {console.error(e)}
     }
 
     function process_busline_header() {
@@ -193,6 +192,9 @@ var regexurl = {
         var lidresult = query_lid(lname, 0);
         var lid = lidresult.lid;
 
+        if (lidresult.oldIsLoaded == false)
+            insert_sidlids(lid, jQuery("a", table));
+
         jQuery("a", table).each( function(i, val) {
             var tthis = jQuery(this);
             var sid = tthis.attr("href").replace( regex.showSS, "$1" );
@@ -216,23 +218,15 @@ var regexurl = {
     function process_busline_table(table) {
         if (jQuery("#newTable").size() != 0)
             return;
-        var lname = jQuery("td.mtext1:contains('路線編號')").next().text();
-        var lidresult = query_lid(lname, 0);
-        var lid = lidresult.lid;
 
             // new table
-            var newTable = jQuery("<table id ='newTable' class='newTable'><thead><tr><td class='name'>站名</td></tr></thead><tbody></tbody></table>");
+            var newTable = jQuery("<table id ='newTable' class='newTable'><thead><tr><td class='area'>地點</td><td class='name'>站名</td><td class='otherbus'>路線</td></tr></thead><tbody></tbody></table>");
             var newTableBody = jQuery("tbody", newTable);
 //            jQuery("thead td.name", newTable).append(
 //                jQuery("<a/>").text("展開所有地圖").click(function() {
 //                    jQuery("a.map:not(.expended)").click();
 //                } )
 //            );
-
-            jQuery("<td class='otherbus'>路線</td>"  ).appendTo( jQuery("thead>tr", newTable));
-            if (hasGears) {
-                jQuery("<td class='area'>地點</td>").prependTo(jQuery("thead>tr", newTable));
-            }
 
         /* 預先準備複製用的元素 */
         var org_tr       = jQuery("<tr><td class='area'/><td class='name'></td><td class='otherbus'/></tr>");
@@ -250,9 +244,6 @@ var regexurl = {
 
         //db.execute( 'CREATE TEMP VIEW STOPLINE AS SELECT Name,SId FROM BusLine left join BusStopLine on BusStopLine.LId=BusLine.LId WHERE BusStopLine.LId=? ORDER BY BusLine.Name', [ lid ] ).close();
 
-
-        if (lidresult.oldIsLoaded == false)
-            insert_sidlids(lid, jQuery("a", table));
 
         jQuery("a", table).each( function(i, val) {
             var tthis = jQuery(this);
@@ -774,7 +765,7 @@ var regexurl = {
                 .attr("id", "cboptUseGears")
                 .appendTo(spanUseGears);
         jQuery("<span/>")
-                .text("使用 google gears 功能")
+                .text("* 使用 google gears 功能")
                 .appendTo(spanUseGears);
         org_br.clone().appendTo(spanUseGears);
 
@@ -782,7 +773,7 @@ var regexurl = {
                 .attr("id", "cboptSnapShot")
                 .appendTo(spanSnapShot);
         jQuery("<span/>")
-                .text("使用 SnapShot 預覽")
+                .text("* 使用 SnapShot 預覽")
                 .appendTo(spanSnapShot);
         org_br.clone().appendTo(spanSnapShot);
 
@@ -790,7 +781,7 @@ var regexurl = {
                 .attr("id", "cboptAutoTable")
                 .appendTo(spanAutoTable);
         jQuery("<span/>")
-                .text("自動展開詳細路線表格")
+                .text("  自動展開詳細路線表格")
                 .appendTo(spanAutoTable);
         org_br.clone().appendTo(spanAutoTable);
 
@@ -798,7 +789,7 @@ var regexurl = {
                 .attr("id", "cboptAutoUpdate")
                 .appendTo(spanAutoUpdate);
         jQuery("<span/>")
-                .text("自動檢查更新")
+                .text("* 自動檢查更新")
                 .appendTo(spanAutoUpdate);
         org_br.clone().appendTo(spanAutoUpdate);
 
@@ -806,7 +797,7 @@ var regexurl = {
                 .attr("id", "cboptUseCoralCDN")
                 .appendTo(spanUseCoralCDN);
         jQuery("<span/>")
-                .text("使用 Coral CDN")
+                .text("  使用 Coral CDN")
                 .appendTo(spanUseCoralCDN);
         org_br.clone().appendTo(spanUseCoralCDN);
 
@@ -819,6 +810,10 @@ var regexurl = {
         jQuery("<a/>")
                 .text("取消")
                 .click( closePrefPanel )
+                .appendTo(spanControl);
+        jQuery("<span>&nbsp;</span>")
+                .appendTo(spanControl);
+        jQuery("<span>(*)建議使用</span>")
                 .appendTo(spanControl);
 
         if (GM_getValue("optUseGears")) {
