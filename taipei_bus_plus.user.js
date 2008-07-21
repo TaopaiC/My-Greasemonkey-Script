@@ -816,19 +816,19 @@ var regexurl = {
         jQuery("<span>(*)建議使用</span>")
                 .appendTo(spanControl);
 
-        if (GM_getValue("optUseGears")) {
+        if (GM_getValue("optUseGears", pref.useGears)) {
             jQuery("#cboptUseGears", divoptions).attr("checked", true);
         }
-        if (GM_getValue("optSnapShot")) {
+        if (GM_getValue("optSnapShot", pref.snapShot)) {
             jQuery("#cboptSnapShot", divoptions).attr("checked", true);
         }
-        if (GM_getValue("optAutoTable")) {
+        if (GM_getValue("optAutoTable", pref.autoTable)) {
             jQuery("#cboptAutoTable", divoptions).attr("checked", true);
         }
-        if (GM_getValue("optUseCoralCDN")) {
+        if (GM_getValue("optUseCoralCDN", pref.useCoralCDN)) {
             jQuery("#cboptUseCoralCDN", divoptions).attr("checked", true);
         }
-        if (GM_getValue("optAutoUpdate")) {
+        if (GM_getValue("optAutoUpdate", pref.autoUpdate)) {
             jQuery("#cboptAutoUpdate", divoptions).attr("checked", true);
         }
 
