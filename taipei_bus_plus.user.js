@@ -9,6 +9,7 @@
 // @require        http://ajax.googleapis.com/ajax/libs/jquery/1.2.6/jquery.min.js
 // @require        http://code.google.com/apis/gears/gears_init.js
 // ==/UserScript==
+
 // version         $Id$
 
 (function(){
@@ -963,7 +964,6 @@ var regexurl = {
         autoUpdateFromUserscriptsDotOrg( {
             name: TaipeiBusPlus.name,
             url: 'http://userscripts.org/scripts/source/' + TaipeiBusPlus.usId + '.user.js',
-            showurl: 'http://userscripts.org/scripts/show/' + TaipeiBusPlus.usId,
             version: TaipeiBusPlus.version
         } );
     }
@@ -1009,7 +1009,7 @@ var regexurl = {
                     var confirm_msg = 'A new version ' + theOtherVersion + ' of greasemonkey script "' + SCRIPT.name + '" is available.\nYour installed version is ' + SCRIPT.version + ' .\n\nUpdate now?\n';
                     if ( window.confirm(confirm_msg) ) {
                         // better than location.replace as doing so might lose unsaved data
-                        GM_openInTab(SCRIPT.showurl);   
+                        GM_openInTab(SCRIPT.url);   
                     }
                 }
             } );
