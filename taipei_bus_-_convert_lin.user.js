@@ -9,7 +9,7 @@
 // @require        http://ajax.googleapis.com/ajax/libs/jquery/1.2.6/jquery.min.js
 // @require        http://code.google.com/apis/gears/gears_init.js
 // ==/UserScript==
-// version        $Id: taipei_bus_-_convert_lin.user.js 5 2008-07-18 21:03:29Z pctao $
+// version         $Id$
 
 (function(){
 
