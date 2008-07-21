@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name           Taipei Bus PLUS
 // @namespace      http://pctao.org/
-// @description    將路線及公車站的連結從 javascript: 改成直接連結.<br/>  Convert Line and BusStop links from javascript: to direct links.
+// @description    將 http://www.taipeibus.taipei.gov.tw/ 的路線及公車站的連結從 javascript: 改成直接連結, 以及其他增強功能.<br/>  Convert Line and BusStop links from javascript: to direct links, and other enchanced functions.
 // @author         TaopaiC
 // @version        0.3
 // @include        http://www.taipeibus.taipei.gov.tw/*
@@ -17,8 +17,8 @@
 // SCRIPT info
 // -------------------------------------------------------
 var TaipeiBusPlus = {
-    'version':  '0.1',
-    'name':     'Taipei Bus+',
+    'version':  '0.3',
+    'name':     'Taipei Bus PLUS',
     'author':   'TaopaiC <pctao.public@pctao.org>',
     'usId':     '29274'
 };
