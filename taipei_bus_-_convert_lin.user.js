@@ -1,15 +1,11 @@
 // ==UserScript==
-// @name           Taipei Bus - convert links
+// @name           Taipei Bus PLUS
 // @namespace      http://pctao.org/
 // @description    將路線及公車站的連結從 javascript: 改成直接連結.<br/>  Convert Line and BusStop links from javascript: to direct links.
 // @author         TaopaiC
 // @version        0.3
-// @include        http://www.taipeibus.taipei.gov.tw/emap/program/html/bus_stationcnt.asp*
-// @include        http://www.taipeibus.taipei.gov.tw/emap/program/html/bus_cnt.asp*
-// @include        http://www.taipeibus.taipei.gov.tw/transit/result1.asp
-// @include        http://www.taipeibus.taipei.gov.tw.nyud.net/emap/program/html/bus_stationcnt.asp*
-// @include        http://www.taipeibus.taipei.gov.tw.nyud.net/emap/program/html/bus_cnt.asp*
-// @include        http://www.taipeibus.taipei.gov.tw.nyud.net/transit/result1.asp
+// @include        http://www.taipeibus.taipei.gov.tw/*
+// @include        http://www.taipeibus.taipei.gov.tw.nyud.net/*
 // @require        http://ajax.googleapis.com/ajax/libs/jquery/1.2.6/jquery.min.js
 // @require        http://code.google.com/apis/gears/gears_init.js
 // ==/UserScript==
@@ -35,15 +31,17 @@ var console= unsafeWindow.console || {log: function(){}, debug: function(){}};
 var server = null;
 var store = null;
 var db = null;
+var thisPage = false;
 
 var snapshotkey = "053d995628053581b456595b40596e61";
 var snapshotkey_coralCDN = "a9fa671968c03d42af7004fbe6353b11";
 
 var pref = {
-    "useGears":   true,
-    "autoTable":  false,
-    "snapShot":   true,
-    "useCoralCDN": false 
+    "useGears":    true,
+    "autoTable":   false,
+    "snapShot":    true,
+    "useCoralCDN": false, 
+    "autoUpdate":  true
 }
 
 var regex = { 
@@ -54,6 +52,7 @@ var regex = {
     "href_sid":  /.*bus_stationcnt.asp\?s=(\d*).*/,
     "href_stop": /.*bus_stationcnt.asp\?s=.*/,
     "href_line": /.*bus_cnt.asp\?s=.*/,
+    "href_search": /.*bus.asp.*/,
     "href_mrt":  /.*\/result1\.asp$/,
     "stop_mrt":  /捷運|車站/
 };
@@ -90,7 +89,7 @@ var regexurl = {
             db.execute('UPDATE BusStop SET Name=?,Area=?,Road=?,isLoaded=1 WHERE SId = ?', 
                     [sname, sarea, sroad, sid]);
         } else {
-            db.execute('INSERT into BusStop values (?, ?, ?, ?, 1)', 
+            db.execute('INSERT into BusStop values (?, ?, ?, ?, NULL, 1)', 
                     [sid, sname, sarea, sroad]);
         }
     }
@@ -100,11 +99,15 @@ var regexurl = {
             return;
 
         var lname = jQuery("td.mtext1:contains('路線編號')").next().text();
-        var lid = query_lid(lname, 0);
+        var lidresult = query_lid(lname, 0);
+        if (lidresult.oldIsLoaded)
+            return;
+
+        var lid = lidresult.lid;
         var lStartStop = jQuery("td.mtext1:contains('起點')").next().text();
         var lEndStop   = jQuery("td.mtext1:contains('迄點')").next().text();
 
-        db.execute('UPDATE BusLine SET Name=?,StartStop=?,EndStop=?,isLoaded=1 WHERE LId = ?', 
+        db.execute('UPDATE BusLine SET Name=?,StartStop=?,EndStop=? WHERE LId = ?', 
                     [lname, lStartStop, lEndStop, lid]);
     }
 
@@ -187,7 +190,8 @@ var regexurl = {
 
     function process_busline(table) {
         var lname = jQuery("td.mtext1:contains('路線編號')").next().text();
-        var lid = query_lid(lname, 0);
+        var lidresult = query_lid(lname, 0);
+        var lid = lidresult.lid;
 
         if (pref.autoTable) {
             // new table
@@ -217,7 +221,11 @@ var regexurl = {
         var org_amap     = jQuery("<a/>").text("(地圖)").addClass("map").addClass('snap_noshots');
         var org_load     = jQuery("<a/>").text("(載入路線)").addClass("loadbusline").addClass('snap_noshots');
 
-        //db.execute( 'CREATE TEMP VIEW STOPLINE AS SELECT BusLine.Name BusStopLine.SId FROM BusLine left join BusStopLine on BusLine.lid=BusStopLine.lid WHERE BusStopLine.lid=? ORDER BY BusLine.Name', [ lid ] );
+        //db.execute( 'CREATE TEMP VIEW STOPLINE AS SELECT Name,SId FROM BusLine left join BusStopLine on BusStopLine.LId=BusLine.LId WHERE BusStopLine.LId=? ORDER BY BusLine.Name', [ lid ] ).close();
+
+
+        if (lidresult.oldIsLoaded == false)
+            insert_sidlids(lid, jQuery("a", table));
 
         jQuery("a", table).each( function(i, val) {
             var tthis = jQuery(this);
@@ -258,24 +266,21 @@ var regexurl = {
                 try {
                     var needupdate = insert_sid(sid, sname);
                     if (needupdate == true) {
-                        insert_sidlid(sid,lid,i+1);
                         tr.addClass("needUpdate");
                     }
 
-                    var rs = db.execute( 'select Area,Road from BusStop where SId = ?', [ sid ] );
-                    if (rs.isValidRow()) {
-                        if (rs.field(0) != null) {
-                            org_tdarea.clone().text(rs.field(0) + rs.field(1)).prependTo(tr);
-                        } else {
-                            org_tdarea.clone().prependTo(tr);
+                    var tdarea = org_tdarea.clone().prependTo(tr);
+                    if (!needupdate) {
+                        var rs = db.execute( 'select Area,Road from BusStop where SId = ?', [ sid ] );
+                        if (rs.isValidRow() && rs.field(0) != null) {
+                            tdarea.text(rs.field(0) + rs.field(1));
                         }
                         rs.close();
-                    } else {
-                        org_tdarea.clone().prependTo(tr);
                     }
 
                     // TODO: need rewrite
-                    rs = db.execute( 'SELECT BusLine.Name FROM BusLine left join BusStopLine on BusLine.lid=BusStopLine.lid WHERE BusStopLine.sid=? ORDER BY BusLine.Name', [ sid ] );
+                    //rs = db.execute( 'SELECT Name FROM STOPLINE WHERE SId=? ORDER BY Name', [ sid ] );
+                    rs = db.execute( 'SELECT BusLine.Name FROM BusLine left join BusStopLine on BusStopLine.lid=BusLine.lid WHERE BusStopLine.sid=? ORDER BY BusLine.Name', [ sid ] );
                     var first = true;
                     while (rs.isValidRow()) {
                         if (first)
@@ -284,14 +289,9 @@ var regexurl = {
                             org_delma.clone().appendTo(otherbus);
                         var lname = rs.field(0);
                         var a = org_a.clone().text(lname).attr("href", url.busline + lname)
-                                .hover( function() {
-                                    jQuery("a:contains(" + jQuery(this).text() + ")", 
-                                            jQuery(this).parent().parent().parent())
-                                        .addClass("selectedHover");
-                                }, function() {
-                                    jQuery("a.selectedHover").removeClass('selectedHover');
-                                } );
-                        a.appendTo(otherbus);
+                                .hover( busline_line_hover_handler_on,
+                                        busline_line_hover_handler_off )
+                                .appendTo(otherbus);
                         rs.next();
                     }
                     rs.close();
@@ -316,6 +316,16 @@ var regexurl = {
             newTable.insertAfter(table).wrap("<tr><td colspan='4'/></tr>");
     }
 
+    function busline_line_hover_handler_on() {
+        jQuery("a:contains(" + jQuery(this).text() + ")", 
+                jQuery(this).parent().parent().parent())
+            .addClass("selectedHover");
+    }
+
+    function busline_line_hover_handler_off() {
+        jQuery("a.selectedHover").removeClass('selectedHover');
+    }
+
     function process_busstop(table) {
         try {
 
@@ -335,8 +345,8 @@ var regexurl = {
                 jQuery(this).clone().appendTo(tr).wrap("<td class='line'/>");
 
                 if (hasGears) {
-                    var lid = query_lid(lname, 0);
-                    console.debug("line:" + lname + " : "+ query_lid(lname, 0));
+                    var lid = ( query_lid(lname, 0) ).lid;
+                    console.debug("line:" + lname + " : "+ ( query_lid(lname, 0) ).lid);
                     insert_sidlid(sid,lid,0);
 
                     var rs = db.execute( 'SELECT StartStop,EndStop FROM BusLine WHERE LId=? AND isLoaded=1', [ lid ] );
@@ -374,27 +384,72 @@ var regexurl = {
         } );
     }
 
-    function myjob()
-    {
+    function process_searchresult_layout() {
+        var tr = jQuery("<tr/>");
+        var td = jQuery("<td colspan='4'/>").appendTo(tr)
+                .css( { textAlign:"center" } );
+        var btByStation = jQuery("<a/>").attr("id", "stationLink")
+                .appendTo(td);
+        jQuery("<br/>").appendTo(td);
+        var btByStationMap = jQuery("<img/>").attr("id", "stationLinkMap")
+                .hide()
+                .appendTo(td);
+        tr.insertAfter( jQuery("tbody>tr:has(select[name=select4]):eq(2)") );
+
+        jQuery("select[name=pp]").attr("size",10).height("");
+
+        jQuery("select[name=select2]").attr("size",10).height("");
+        jQuery("select[name=select3]").attr("size",10).height("");
+        jQuery("select[name=select4]").attr("size",10).height("")
+            .change(function() {
+                var selected = jQuery('option:selected', this);
+                jQuery("a#stationLink").text( selected.text() )
+                    .attr("href", url.busstop + selected.val() );
+                jQuery("img#stationLinkMap").attr("title", selected.text() )
+                    .show()
+                    .attr("src", url.busstopmap + selected.val() + ".gif" );
+            } );
+
+    }
+
+    function whichPage() {
+        var loc = location.href;
+        if (loc.match( regex.href_line )) {
+            thisPage = "line";
+        } else if (loc.match( regex.href_stop )) {
+            thisPage = "stop";
+        } else if (loc.match( regex.href_search )) {
+            thisPage = "search";
+        } else if (loc.match( regex.href_mrt )) {
+            thisPage = "mrt";
+        }
+    }
+
+
+    function myjob() {
         try {
 
             jQuery("body>table").attr("width", 600);
             jQuery("font[color=red]").addClass("separator").removeAttr("color");
+            console.debug(thisPage);
 
-            if (location.href.match( regex.href_mrt )) {
-                process_searchresult();
-            } else if (location.href.match( regex.href_line )) {
+            if (thisPage == "line") {
                 table = jQuery("td.mtext1:contains('路線資訊')").parent().next();
                 if (table.length > 0) {
                     process_busline_header();
                     process_busline(table);
                 }
-            } else if (location.href.match( regex.href_stop )) {
+            } else if (thisPage == "stop") {
                 table = jQuery("td.mtext1:contains('停靠路線')").next();;
                 if (table.length > 0) {
                     process_busstop_header();
                     process_busstop(table);
                 }
+            } else if (thisPage == "search") {
+                process_searchresult_layout();
+                process_searchresult();
+            } else if (thisPage == "mrt") {
+                process_searchresult();
             }
 
         } catch (e) {
@@ -403,6 +458,8 @@ var regexurl = {
     }
 
     function loadSnap() {
+        if (thisPage == false || thisPage == "search")
+            return;
         if (!pref.snapShot)
             return;
         var script= document.createElement('script');
@@ -427,13 +484,36 @@ var regexurl = {
         } else {
             // no this busline, add one
             rs.close();
-            db.execute('REPLACE into BusStopLine values (?, ?, ?)', 
-                    [ sid, lid, no ] );
-            rs.close();
+            db.execute('INSERT OR IGNORE into BusStopLine values (?, ?, ?)', 
+                    [ sid, lid, no ] ).close();
             return;
         }
         rs.close();
         return;
+    }
+
+    function insert_sidlids(lid, sidlids) {
+        if (!hasGears)
+            return;
+
+        console.debug("insert_sidlids");
+        db.execute("BEGIN");
+        try {
+            jQuery(sidlids).each( function(i, val) {
+                    var tthis = jQuery(this);
+                    var sid = tthis.attr("href").replace( regex.showSS, "$1" );
+                    var sname = tthis.text();
+                    db.execute('INSERT OR IGNORE into BusStopLine values (?, ?, ?)', 
+                        [ sid, lid, i+1 ] );
+            } )
+        } catch (e) {
+            db.execute("ROLLBACK");
+            console.debug("catch insert_sidlids");
+            return;
+        }
+        db.execute('UPDATE BusLine SET isLoaded=1 WHERE LId = ?', [lid]);
+        db.execute("COMMIT");
+        console.debug("end insert_sidlids");
     }
 
     function insert_sid(sid, sname) {
@@ -450,8 +530,8 @@ var regexurl = {
         } else {
             // no this busstop, add one
             rs.close();
-            db.execute('REPLACE into BusStop values (?, ?, NULL, NULL, 0)', 
-                    [ sid, sname ] );
+            db.execute('INSERT OR IGNORE into BusStop values (?, ?, NULL, NULL, NULL, 0)', 
+                    [ sid, sname ] ).close();
             return true;
         }
     }
@@ -460,47 +540,45 @@ var regexurl = {
         // return lid : bus line id
         // isLoaded: 0:部份資料 1:全部資料
         //   0->1需要UPDATE
+        var result = {"lid": null, "oldIsLoaded": false};
         if (!hasGears)
-            return null;
+            return result;
         try {
-            console.debug("query_lid:" + lname);
-            var lid;
+            console.debug("query_lid:" + lname + "|" + isLoaded);
             var rs = db.execute( 'select LId,isLoaded from BusLine where Name = ?', [ lname ] );
             if (rs.isValidRow()) {
                 console.debug("query_lid-:11");
-                lid = rs.field(0);
+                result.lid = rs.field(0);
+                if (rs.field(1) == 1)
+                    result.oldIsLoaded = true;
                 rs.close();
+
                 if ( (isLoaded == 1) && (rs.field(1) == 0) ) {
-                    db.execute('UPDATE BusLine SET isLoaded=? WHERE LId = ?', [ isLoaded, lid ] ); 
+                    db.execute('UPDATE BusLine SET isLoaded=? WHERE LId = ?', [ isLoaded, result.lid ] );
                 }
-                return lid;
             } else {
                 // no this busline, add one
                 rs.close();
-                console.debug("query_lid-:1");
-                db.execute('REPLACE into BusLine values (NULL, ?, ?, NULL, NULL)', 
-                        [ lname, isLoaded ] );
-                console.debug("query_lid-:2");
+                db.execute('INSERT OR IGNORE into BusLine values (NULL, ?, ?, NULL, NULL, NULL)', 
+                        [ lname, isLoaded ] ).close();
                 rs = db.execute( 'select LId from BusLine where Name = ?', [ lname ] );
-                console.debug("query_lid-:3");
                 if (rs.isValidRow()) {
-                console.debug("query_lid-:4");
-                    lid = rs.field(0);
-                console.debug("query_lid-:5");
+                    result.lid = rs.field(0);
                     rs.close();
-                console.debug("query_lid-:6");
-                    return lid;
                 }
             }
             rs.close();
-            return null;
         } catch (e) {
             rs.close();
             console.debug("error process_busline:" + e);
         }
+        console.debug("result:" + result.lid + "|" + result.oldIsLoaded);
+        return result;
     }
 
     function initGears() {
+        if (thisPage == false)
+            return;
         if (!pref.useGears)
             return;
         if (!unsafeWindow.google) unsafeWindow.google = {};
@@ -515,16 +593,28 @@ var regexurl = {
                 db.open('taipeibus');
             // BusStop
                 db.execute('create table if not exists BusStop' +
-                    ' (SId INTEGER, Name varchar(128), Area varchar(128), Road varchar(128), isLoaded INTEGER)');
-                db.execute('CREATE INDEX if not exists BS_SID' + 
+                    ' (SId INTEGER NOT NULL PRIMARY KEY, Name varchar(128), Area varchar(128), Road varchar(128),Time date, isLoaded INTEGER)');
+                db.execute('CREATE UNIQUE INDEX if not exists BS_SID' + 
                     ' ON BusStop (SId ASC)');
+                db.execute("CREATE TRIGGER if not exists 'insert_BS_timeEnter'" +
+                    " AFTER INSERT ON BusStop WHEN new.isLoaded=1" +
+                    " BEGIN UPDATE BusStop SET Time = DATETIME('NOW')" +
+                    " WHERE SId = new.SId; END");
+                db.execute("CREATE TRIGGER if not exists 'update_BS_timeEnter'" +
+                    " AFTER UPDATE ON BusStop WHEN new.isLoaded=1" +
+                    " BEGIN UPDATE BusStop SET Time = DATETIME('NOW')" +
+                    " WHERE SId = new.SId; END");
             // BusLine
                 db.execute('create table if not exists BusLine' +
-                    ' (LId INTEGER NOT NULL PRIMARY KEY, Name varchar(128), isLoaded INTEGER, StartStop varchar(64), EndStop varchar(64))');
-                db.execute('CREATE INDEX if not exists BL_LID' + 
+                    ' (LId INTEGER NOT NULL PRIMARY KEY, Name varchar(128), isLoaded INTEGER, StartStop varchar(64), EndStop varchar(64), Time date)');
+                db.execute('CREATE UNIQUE INDEX if not exists BL_LID' + 
                     ' ON BusLine (LId ASC)');
-                db.execute('CREATE INDEX if not exists BL_LIDNAME' + 
+                db.execute('CREATE UNIQUE INDEX if not exists BL_LIDNAME' + 
                     ' ON BusLine (LId ASC, Name ASC)');
+                db.execute("CREATE TRIGGER if not exists 'update_BL_timeEnter'" +
+                    " AFTER UPDATE ON BusLine WHEN new.isLoaded=1" +
+                    " BEGIN UPDATE BusLine SET Time = DATETIME('NOW')" +
+                    " WHERE LId = new.LId; END");
             // BusStop -> lines
                 db.execute('create table if not exists BusStopLine' +
                     ' (SId INTEGER, LId INTEGER, No INTEGER)');
@@ -532,6 +622,8 @@ var regexurl = {
                     ' ON BusStopLine (LId ASC)');
                 db.execute('CREATE INDEX if not exists BSL_SID' + 
                     ' ON BusStopLine (SId ASC)');
+                db.execute('CREATE UNIQUE INDEX if not exists BSL_LIDSId' + 
+                    ' ON BusStopLine (LId ASC, SId ASC)');
             }
             hasGears = true;
             console.debug("done");
@@ -566,6 +658,7 @@ var regexurl = {
         GM_setValue("optSnapShot",    jQuery("#cboptSnapShot", optPanel).attr("checked"));
         GM_setValue("optAutoTable",   jQuery("#cboptAutoTable", optPanel).attr("checked"));
         GM_setValue("optUseCoralCDN", jQuery("#cboptUseCoralCDN", optPanel).attr("checked"));
+        GM_setValue("optAutoUpdate",   jQuery("#cboptAutoUpdate", optPanel).attr("checked"));
 
         closePrefPanel();
     }
@@ -581,6 +674,7 @@ var regexurl = {
                 .css( {
                     textAlign: "left",
                     backgroundColor: "#FFFF77",
+                    color:    "#000",
                     position: "fixed",
                     zIndex:   "1001",
                     fontSize: "xx-small",
@@ -601,6 +695,9 @@ var regexurl = {
                 .appendTo(divoptions);
         var spanUseCoralCDN = jQuery("<span/>")
                 .attr("id", "taipeibusplus_prefs_useCoralCDN")
+                .appendTo(divoptions);
+        var spanAutoUpdate = jQuery("<span/>")
+                .attr("id", "taipeibusplus_prefs_autoUpdate")
                 .appendTo(divoptions);
         var spanControl = jQuery("<span/>")
                 .attr("id", "taipeibusplus_prefs_control")
@@ -629,6 +726,14 @@ var regexurl = {
                 .text("使用額外列表")
                 .appendTo(spanAutoTable);
         org_br.clone().appendTo(spanAutoTable);
+
+        jQuery("<input type='checkbox'/>")
+                .attr("id", "cboptAutoUpdate")
+                .appendTo(spanAutoUpdate);
+        jQuery("<span/>")
+                .text("自動檢查更新")
+                .appendTo(spanAutoUpdate);
+        org_br.clone().appendTo(spanAutoUpdate);
 
         jQuery("<input type='checkbox'/>")
                 .attr("id", "cboptUseCoralCDN")
@@ -661,11 +766,16 @@ var regexurl = {
         if (GM_getValue("optUseCoralCDN")) {
             jQuery("#cboptUseCoralCDN", divoptions).attr("checked", true);
         }
+        if (GM_getValue("optAutoUpdate")) {
+            jQuery("#cboptAutoUpdate", divoptions).attr("checked", true);
+        }
 
         divoptions.appendTo(document.body);
     }
 
     function createPrefButton() {
+        if (thisPage == false)
+            return;
         jQuery("<button/>")
             .attr("id", "taipeibusplus_prefs_menu_button")
             .attr("title", "設定TaipeiBus+")
@@ -688,6 +798,8 @@ var regexurl = {
         return allmsec;
     }
     function init_Style() {
+        if (thisPage == false)
+            return;
         GM_addStyle(
             "a.loadbusline, a.map {color:#999}" + 
             "a.mrt {background:#DDD}" + 
@@ -723,7 +835,7 @@ var regexurl = {
         loadPref("snapShot", "optSnapShot");
         loadPref("autoTable", "optAutoTable");
         loadPref("useCoralCDN", "optUseCoralCDN");
-
+        loadPref("autoUpdate", "optAutoUpdate");
     }
 
     function removeCDN(url) {
@@ -735,6 +847,9 @@ var regexurl = {
     }
 
     function useCoralCDN() {
+        if (thisPage == false)
+            return;
+
         var oldLoc = location.href;
 
         if (!pref.useCoralCDN) {
@@ -742,6 +857,8 @@ var regexurl = {
             if (oldLoc != newLoc) {
                 location.replace(newLoc);
             }
+            url.busstopmap = replaceToCDN(url.busstopmap);
+            regexurl.busstopmap = replaceToCDN(regexurl.busstopmap);
             return;
         }
 
@@ -754,26 +871,41 @@ var regexurl = {
         url.busline = replaceToCDN(url.busline);
         url.mrt     = replaceToCDN(url.mrt);
         url.busstopmap = replaceToCDN(url.busstopmap);
+        regexurl.busstop = replaceToCDN(regexurl.busstop);
+        regexurl.busline = replaceToCDN(regexurl.busline);
+        regexurl.mrt     = replaceToCDN(regexurl.mrt);
+        regexurl.busstopmap = replaceToCDN(regexurl.busstopmap);
 
         snapshotkey = snapshotkey_coralCDN;
     }
 
     function init() {
         loadPrefs();
+        whichPage();
         useCoralCDN();
-        autoUpdateFromUserscriptsDotOrg( {
-            name: TaipeiBusPlus.name,
-            url: 'http://userscripts.org/scripts/source/' + TaipeiBusPlus.usId + '.user.js',
-            version: TaipeiBusPlus.version
-        } );
-        createPrefButton();
+        autoUpdate();
         initGears();
         init_Style();
+        createPrefButton();
         var starttime = new Date();
         myjob();
         var endtime = new Date();
         console.debug("exec " + caltime(starttime, endtime) + " msec");
         loadSnap();
+    }
+
+    function autoUpdate() {
+        if (thisPage == false)
+            return;
+        if (!pref.autoUpdate)
+            return;
+        console.debug("autoupdate");
+
+        autoUpdateFromUserscriptsDotOrg( {
+            name: TaipeiBusPlus.name,
+            url: 'http://userscripts.org/scripts/source/' + TaipeiBusPlus.usId + '.user.js',
+            version: TaipeiBusPlus.version
+        } );
     }
 
     function autoUpdateFromUserscriptsDotOrg(SCRIPT) {
