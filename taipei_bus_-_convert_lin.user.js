@@ -385,15 +385,22 @@ var regexurl = {
     }
 
     function process_searchresult_layout() {
-        var tr = jQuery("<tr/>");
+        var tr = jQuery("<tr/>").attr("id", "stationLink");
         var td = jQuery("<td colspan='4'/>").appendTo(tr)
                 .css( { textAlign:"center" } );
-        var btByStation = jQuery("<a/>").attr("id", "stationLink")
+        var spanMsg = jQuery("<span/>").attr("id", "stationLinkSpanMsg")
+                .css( { color:"#000", fontSize:"normal" } )
+                .hide()
+                .text("Loading...")
                 .appendTo(td);
-        jQuery("<br/>").appendTo(td);
-        var btByStationMap = jQuery("<img/>").attr("id", "stationLinkMap")
+        var span = jQuery("<span/>").attr("id", "stationLinkSpan")
                 .hide()
                 .appendTo(td);
+        var btByStation = jQuery("<a/>").attr("id", "stationLinkA")
+                .appendTo(span);
+        jQuery("<br/>").appendTo(span);
+        var btByStationMap = jQuery("<img/>").attr("id", "stationLinkMap")
+                .appendTo(span);
         tr.insertAfter( jQuery("tbody>tr:has(select[name=select4]):eq(2)") );
 
         jQuery("select[name=pp]").attr("size",10).height("");
@@ -403,11 +410,17 @@ var regexurl = {
         jQuery("select[name=select4]").attr("size",10).height("")
             .change(function() {
                 var selected = jQuery('option:selected', this);
-                jQuery("a#stationLink").text( selected.text() )
+                jQuery("tr#stationLink").height(260);
+                jQuery("span#stationLinkSpan").hide();
+                jQuery("span#stationLinkSpanMsg").show();
+                jQuery("a#stationLinkA").text( selected.text() )
                     .attr("href", url.busstop + selected.val() );
                 jQuery("img#stationLinkMap").attr("title", selected.text() )
-                    .show()
-                    .attr("src", url.busstopmap + selected.val() + ".gif" );
+                    .attr("src", url.busstopmap + selected.val() + ".gif" )
+                    .load(function(){
+                        jQuery("span#stationLinkSpanMsg").hide();
+                        jQuery("span#stationLinkSpan").show();
+                    } );
             } );
 
     }
@@ -857,8 +870,8 @@ var regexurl = {
             if (oldLoc != newLoc) {
                 location.replace(newLoc);
             }
-            url.busstopmap = replaceToCDN(url.busstopmap);
-            regexurl.busstopmap = replaceToCDN(regexurl.busstopmap);
+//            url.busstopmap = replaceToCDN(url.busstopmap);
+//            regexurl.busstopmap = replaceToCDN(regexurl.busstopmap);
             return;
         }
 
