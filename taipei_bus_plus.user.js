@@ -3,7 +3,7 @@
 // @namespace      http://pctao.org/
 // @description    將 http://www.taipeibus.taipei.gov.tw/ 的路線及公車站的連結從 javascript: 改成直接連結, 以及其他增強功能.<br/>  Convert bus line and busstop links from javascript: to direct links, and other enhanced functions.
 // @author         TaopaiC
-// @version        0.4
+// @version        0.6
 // @include        http://www.taipeibus.taipei.gov.tw/*
 // @include        http://www.taipeibus.taipei.gov.tw.nyud.net/*
 // @require        http://ajax.googleapis.com/ajax/libs/jquery/1.2.6/jquery.min.js
@@ -18,7 +18,7 @@
 // SCRIPT info
 // -------------------------------------------------------
 var TaipeiBusPlus = {
-    'version':  '0.4',
+    'version':  '0.6',
     'name':     'Taipei Bus PLUS',
     'author':   'TaopaiC <pctao.public@pctao.org>',
     'usId':     '29274'
@@ -638,12 +638,15 @@ var regexurl = {
     function initGears() {
         if (thisPage == false)
             return;
+
         if (!pref.useGears)
+            // if dont use google gears
             return;
-        if (!unsafeWindow.google) unsafeWindow.google = {};
-        if (!unsafeWindow.google.gears){
-            unsafeWindow.google.gears= {factory: new GearsFactory()};
-        }
+
+        if (!unsafeWindow.google || !unsafeWindow.google.gears)
+            // no google gears
+            return;
+
         try {
             server = unsafeWindow.google.gears.factory.create('beta.localserver', '1.0');
             store = server.createStore("taipeibus");
@@ -766,7 +769,7 @@ var regexurl = {
                 .attr("id", "cboptUseGears")
                 .appendTo(spanUseGears);
         jQuery("<span/>")
-                .text("* 使用 google gears 功能")
+                .html("* 使用 Google Gears 功能,需安裝 <a href='http://gears.google.com/'>Google Gears</a>")
                 .appendTo(spanUseGears);
         org_br.clone().appendTo(spanUseGears);
 
