@@ -77,6 +77,8 @@ var regexurl = {
             return;
 
         var sid = location.href.replace( regex.href_sid, "$1" );
+        var sname = jQuery("td.mtext1:contains('站位名稱')").next().text();
+        document.title = sname + " - 公車停靠站位";
 
         var rs = db.execute( 'SELECT isLoaded from BusStop where SId = ?', [ sid ] );
         if (rs.isValidRow() && rs.field(0) == 1) {
@@ -85,9 +87,9 @@ var regexurl = {
         }
         rs.close();
 
-        var sname = jQuery("td.mtext1:contains('站位名稱')").next().text();
         var sarea = jQuery("td.mtext1:contains('所在行政區')").next().text();
         var sroad = jQuery("td.mtext1:contains('所在道路')").next().text();
+
         try{
         db.execute('INSERT OR REPLACE into BusStop values(?,?,?,?,NULL,?)', 
                 [sid, sname, sarea, sroad, 1]);
@@ -99,6 +101,8 @@ var regexurl = {
             return;
 
         var lname = jQuery("td.mtext1:contains('路線編號')").next().text();
+        document.title = lname + " - 公車路線";
+
         var lidresult = query_lid(lname, 0);
         if (lidresult.oldIsLoaded)
             return;
@@ -335,6 +339,7 @@ var regexurl = {
         var sid = location.href.replace( regex.href_sid, "$1" );
         var newTable = jQuery("<table class='newTable'><thead><tr><td class='line'>路線</td></tr></thead><tbody></tbody></table>");
         var newTableBody = jQuery("tbody", newTable);
+
         if (hasGears) {
             jQuery("<td class='start'>起點</td>").prependTo(jQuery("thead>tr", newTable));
             jQuery("<td class='end'>迄點</td>"  ).appendTo( jQuery("thead>tr", newTable));
@@ -643,9 +648,13 @@ var regexurl = {
             // if dont use google gears
             return;
 
-        if (!unsafeWindow.google || !unsafeWindow.google.gears)
-            // no google gears
+        if (typeof unsafeWindow.GearsFactory == 'undefined')
             return;
+
+        if (!unsafeWindow.google) unsafeWindow.google = {};
+        if (!unsafeWindow.google.gears){
+            unsafeWindow.google.gears= {factory: new GearsFactory()};
+        }
 
         try {
             server = unsafeWindow.google.gears.factory.create('beta.localserver', '1.0');
